@@ -1,0 +1,100 @@
+name: gRPC-js Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      test-filter:
+        description: 'Mocha grep pattern; empty runs the full suite'
+        required: false
+        default: ''
+
+jobs:
+  test:
+
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 45
+
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [ 14.x, 16.x, 18.x, 20.x, 22.x ]
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+    - name: Pin npm registry to the release-date time machine
+      run: |
+        npm config set registry https://time-machines-npm.sealsecurity.io/
+        npm config set //time-machines-npm.sealsecurity.io/:_authToken=2024-05-15T00:00:00.000000Z
+    - name: Install TS
+      run: npm install -g typescript@5.3.3
+    - name: Setup ProtoLoader
+      run: |
+        cd ${{ github.workspace }}/packages/proto-loader/
+        npm install
+    - name: Testing...
+      run: |
+        cd ${{ github.workspace }}/packages/grpc-js/
+        npm install
+        if [ -n "${{ inputs.test-filter }}" ]; then
+          npm run pretest
+          mkdir -p build/test
+          cp -r test/fixtures build/test/fixtures
+          GRPC_EXPERIMENTAL_ENABLE_OUTLIER_DETECTION=true \
+            npx mocha --require ts-node/register --grep "${{ inputs.test-filter }}" 'build/test/**/*.js'
+        else
+          npm run test
+        fi
+
+  pack:
+
+    name: Build and pack @grpc/grpc-js
+
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 45
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Use Node.js 18.16.1
+      uses: actions/setup-node@v4
+      with:
+        node-version: 18.16.1
+    - name: Show Node and npm versions
+      run: |
+        node --version
+        npm --version
+    - name: Pin npm registry to the release-date time machine
+      run: |
+        npm config set registry https://time-machines-npm.sealsecurity.io/
+        npm config set //time-machines-npm.sealsecurity.io/:_authToken=2024-05-15T00:00:00.000000Z
+    - name: Install TS
+      run: npm install -g typescript@5.3.3
+    - name: Setup ProtoLoader
+      run: |
+        cd ${{ github.workspace }}/packages/proto-loader/
+        npm install
+    - name: Install and compile
+      run: |
+        cd ${{ github.workspace }}/packages/grpc-js/
+        npm install
+        npm run compile
+        ls -l build/src/index.js build/src/index.d.ts build/src/index.js.map
+    - name: Pack
+      run: |
+        cd ${{ github.workspace }}/packages/grpc-js/
+        npm pack
+        ls -l *.tgz
+        if [ -f grpc-grpc-js-1.10.8.tgz ]; then mv grpc-grpc-js-1.10.8.tgz grpc-js-1.10.8.tgz; fi
+        test -f grpc-js-1.10.8.tgz
+        tar -tzf grpc-js-1.10.8.tgz
+    - name: Upload tarball
+      uses: actions/upload-artifact@v4
+      with:
+        name: grpc-js-tarball
+        path: packages/grpc-js/grpc-js-1.10.8.tgz
+        if-no-files-found: error

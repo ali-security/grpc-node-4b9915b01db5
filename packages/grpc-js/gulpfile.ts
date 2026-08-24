@@ -53,8 +53,6 @@ const install = checkTask(() => execNpmVerb('install', '--unsafe-perm'));
 /**
  * Runs tslint on files in src/, with linting rules defined in tslint.json.
  */
-const lint = checkTask(() => execNpmCommand('check'));
-
 const cleanFiles = checkTask(() => execNpmCommand('clean'));
 
 const clean = gulp.series(install, cleanFiles);
@@ -83,4 +81,4 @@ const runTests = checkTask(() => {
 
 const test = gulp.series(install, copyTestFixtures, runTests);
 
-export { install, lint, clean, cleanAll, compile, test };
+export { install, clean, cleanAll, compile, test };
